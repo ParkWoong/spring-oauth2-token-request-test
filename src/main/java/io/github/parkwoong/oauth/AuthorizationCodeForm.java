@@ -1,31 +1,22 @@
 package io.github.parkwoong.oauth;
 
-import java.net.URI;
 import java.net.URLEncoder;
 
 public final class AuthorizationCodeForm {
     private AuthorizationCodeForm() {}
 
-    public static String build(TokenRequest request, String redirectUri) {
-        if (request == null || redirectUri == null)
+    public static String newBodyFromCode(
+            String code, String clientId, String clientSecret, String redirectUri) {
+        if (blank(code) || blank(clientId) || blank(clientSecret) || blank(redirectUri))
             throw new IllegalArgumentException("Invalid request");
-        URI uri = URI.create(redirectUri);
-        if (!uri.isAbsolute()
-                || uri.getHost() == null
-                || uri.getFragment() != null
-                || uri.getUserInfo() != null
-                || !("https".equals(uri.getScheme())
-                        || ("http".equals(uri.getScheme()) && "localhost".equals(uri.getHost()))))
-            throw new IllegalArgumentException("Invalid redirect URI");
         try {
             return "client_id="
-                    + encode(request.getClientId())
+                    + encode(clientId)
                     + "&client_secret="
-                    + encode(request.getClientSecret())
-                    + "&grant_type="
-                    + encode(request.getGrantType())
+                    + encode(clientSecret)
+                    + "&grant_type=authorization_code"
                     + "&code="
-                    + encode(request.getCode())
+                    + encode(code)
                     + "&redirect_uri="
                     + encode(redirectUri);
         } catch (Exception error) {
@@ -35,5 +26,9 @@ public final class AuthorizationCodeForm {
 
     private static String encode(String value) throws Exception {
         return URLEncoder.encode(value, "UTF-8");
+    }
+
+    private static boolean blank(String value) {
+        return value == null || value.trim().isEmpty();
     }
 }

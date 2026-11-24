@@ -1,4 +1,4 @@
-# OAuth2 Token Request Parsing / OAuth2 토큰 요청 파싱
+# OAuth2 Token Request Helpers / OAuth2 토큰 요청 유틸리티
 
 [ENG](#eng) | [KR](#kr)
 
@@ -9,8 +9,8 @@
 ```text
 pom.xml
 src/main/java/io/github/parkwoong/oauth/Application.java
-src/main/java/io/github/parkwoong/oauth/TokenRequest.java
-src/main/java/io/github/parkwoong/oauth/TokenRequestParser.java
+src/main/java/io/github/parkwoong/oauth/TokenRequestController.java
+src/main/java/io/github/parkwoong/oauth/HttpUtils.java
 src/main/java/io/github/parkwoong/oauth/AuthorizationCodeForm.java
 src/main/resources/application.properties
 src/test/java/io/github/parkwoong/oauth/TokenRequestTest.java
@@ -18,9 +18,11 @@ src/test/java/io/github/parkwoong/oauth/TokenRequestTest.java
 
 ### Code explanation
 
-`TokenRequestParser` reads client credentials from a Basic header or a form/JSON body. It accepts only the `authorization_code` grant in this example. If credentials appear in both places, they must match. Duplicate fields, malformed input, missing values, and unsupported content types are rejected. Request bodies are limited to 16 KiB.
+`HttpUtils.getClientInfo` reads a client ID and secret from an HTTP Basic authorization header. It returns `null` when the header is missing or malformed and does not log credentials.
 
-`AuthorizationCodeForm` uses URL encoding to build a form body with `client_id`, `client_secret`, `grant_type`, `code`, and `redirect_uri`. The redirect URI must be HTTPS or localhost HTTP. The application does not contact an identity provider and does not log or return credentials. Use synthetic sample values in tests.
+`AuthorizationCodeForm.newBodyFromCode` builds a form body with `client_id`, `client_secret`, `grant_type=authorization_code`, `code`, and `redirect_uri`. It URL-encodes field values so special characters stay inside their fields. The caller supplies the authorization code, credentials, and redirect URI.
+
+TokenRequestController checks a Basic header and returns a form preview with the secret hidden.
 
 ### Run and test
 
@@ -32,7 +34,11 @@ mvn clean verify
 mvn spring-boot:run
 ```
 
-`TokenRequestTest` covers Basic authentication, JSON and form input, form encoding, duplicate fields, conflicting credentials, and invalid requests. The application starts without an HTTP server and exits; there is no real token endpoint. This example does not implement refresh tokens, automatic login, or OAuth provider integration. Basic credentials use UTF-8 and split at the first colon; it does not demonstrate OAuth's optional percent-encoding rules for client credentials.
+`TokenRequestTest` checks Basic header decoding, missing or malformed headers, form encoding, and missing fields. The app listens on localhost:8080. Tests use sample values and do not call an identity provider.
+
+#### Postman API
+
+In Postman's Basic Auth tab, set username sample and password secret, then send POST http://localhost:8080/api/oauth/basic with no body. Expected: HTTP 200, {"clientId":"sample","secretPresent":true}; the secret is not returned. To preview form encoding, send POST http://localhost:8080/api/oauth/form with Content-Type: application/json and body {"code":"abc","clientId":"sample","clientSecret":"secret","redirectUri":"http://localhost/callback"}. Expected: HTTP 200 with form starting client_id=sample&client_secret=REDACTED&grant_type=authorization_code.
 
 ## KR
 
@@ -41,8 +47,8 @@ mvn spring-boot:run
 ```text
 pom.xml
 src/main/java/io/github/parkwoong/oauth/Application.java
-src/main/java/io/github/parkwoong/oauth/TokenRequest.java
-src/main/java/io/github/parkwoong/oauth/TokenRequestParser.java
+src/main/java/io/github/parkwoong/oauth/TokenRequestController.java
+src/main/java/io/github/parkwoong/oauth/HttpUtils.java
 src/main/java/io/github/parkwoong/oauth/AuthorizationCodeForm.java
 src/main/resources/application.properties
 src/test/java/io/github/parkwoong/oauth/TokenRequestTest.java
@@ -50,13 +56,15 @@ src/test/java/io/github/parkwoong/oauth/TokenRequestTest.java
 
 ### 코드 설명
 
-`TokenRequestParser`는 Basic 헤더 또는 form/JSON 본문에서 클라이언트 정보를 읽습니다. 예제에서는 `authorization_code` grant만 처리합니다. 인증 정보가 두 곳에 있으면 값이 일치해야 합니다. 중복 필드, 잘못된 형식, 필수값 누락 및 지원하지 않는 콘텐츠 타입은 거부합니다. 요청 본문은 16 KiB로 제한합니다.
+`HttpUtils.getClientInfo`는 HTTP Basic 인증 헤더에서 클라이언트 ID와 secret을 읽습니다. 헤더가 없거나 형식이 잘못되면 `null`을 반환하며 인증 정보를 로그에 남기지 않습니다.
 
-`AuthorizationCodeForm`은 URL 인코딩으로 `client_id`, `client_secret`, `grant_type`, `code`, `redirect_uri`가 담긴 form 본문을 만듭니다. redirect URI는 HTTPS 또는 localhost HTTP만 허용합니다. 앱은 인증 서버에 연결하지 않으며 인증 정보를 로그나 응답에 출력하지 않습니다. 테스트에는 가상 값을 사용합니다.
+`AuthorizationCodeForm.newBodyFromCode`는 `client_id`, `client_secret`, `grant_type=authorization_code`, `code`, `redirect_uri`를 담은 form 본문을 만듭니다. 특수문자가 필드 값을 벗어나지 않도록 URL 인코딩합니다. 인증 코드, 인증 정보, redirect URI는 호출자가 전달합니다.
+
+TokenRequestController는 Basic 헤더를 확인하고 secret을 가린 form 미리보기를 반환합니다.
 
 ### 실행과 테스트
 
-JDK 8과 Maven 3.6.3 이상을 사용하고 저장소 루트에서 실행하세요.
+저장소 루트에서 JDK 8과 Maven 3.6.3 이상을 사용하세요.
 
 ```sh
 java -version
@@ -64,4 +72,8 @@ mvn clean verify
 mvn spring-boot:run
 ```
 
-`TokenRequestTest`는 Basic 인증, JSON·form 입력, form 인코딩, 중복 필드, 충돌하는 인증 정보 및 잘못된 요청을 확인합니다. 앱은 HTTP 서버 없이 시작 후 종료하며 실제 토큰 엔드포인트는 없습니다. refresh token, 자동 로그인 및 OAuth 제공자 연동은 구현하지 않았습니다. Basic 인증 정보는 UTF-8로 디코딩하고 첫 번째 콜론에서 나누며, OAuth의 선택적 클라이언트 정보 퍼센트 인코딩 규칙은 다루지 않습니다.
+`TokenRequestTest`는 Basic 헤더 해석, 누락·오류 헤더, form 인코딩, 필수값 누락을 확인합니다. 앱은 localhost:8080에서 실행됩니다. 테스트에는 가상 값을 사용하며 실제 인증 서버를 호출하지 않습니다.
+
+#### Postman API
+
+Postman의 Basic Auth에서 사용자 이름 sample, 비밀번호 secret을 설정하고 본문 없이 POST http://localhost:8080/api/oauth/basic을 보내세요. 예상 결과: HTTP 200, {"clientId":"sample","secretPresent":true}이며 secret은 반환하지 않습니다. form 인코딩은 Content-Type: application/json으로 POST http://localhost:8080/api/oauth/form에 {"code":"abc","clientId":"sample","clientSecret":"secret","redirectUri":"http://localhost/callback"}을 보내 확인하세요. 예상 결과: HTTP 200이며 form은 client_id=sample&client_secret=REDACTED&grant_type=authorization_code로 시작합니다.
